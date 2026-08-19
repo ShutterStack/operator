@@ -152,19 +152,7 @@ grafana:
     seccompProfile:
       type: RuntimeDefault
 
-  # ── Pre-loaded data sources ───────────────────────────────────────────────────
-  datasources:
-    datasources.yaml:
-      apiVersion: 1
-      datasources:
-        - name: Prometheus
-          type: prometheus
-          url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
-          access: proxy
-          isDefault: true
-          jsonData:
-            timeInterval: "30s"
-            httpMethod: POST
+
 
   # ── Pre-loaded dashboards (from Grafana.com) ──────────────────────────────────
   dashboardProviders:
