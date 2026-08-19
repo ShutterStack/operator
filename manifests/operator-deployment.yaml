@@ -1,0 +1,127 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kopf-operator
+  namespace: operator
+  labels:
+    app.kubernetes.io/name: kopf-operator
+    app.kubernetes.io/component: operator
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kopf-operator
+  strategy:
+    type: Recreate   # Only one operator replica at a time (leader election via Kopf)
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kopf-operator
+        app.kubernetes.io/component: operator
+      annotations:
+        kubectl.kubernetes.io/default-container: kopf-operator
+    spec:
+      serviceAccountName: kopf-operator
+      terminationGracePeriodSeconds: 30
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      containers:
+        - name: kopf-operator
+          # For local VM: build image locally and use imagePullPolicy: Never
+          # docker build -t kopf-operator:latest .
+          # then load into cluster nodes or use ctr/podman
+          image: kopf-operator:latest
+          imagePullPolicy: Never   # ← change to IfNotPresent for registry-pushed images
+
+          args:
+            - run
+            - /app/platform_operator/main.py
+            - --all-namespaces
+            - --liveness=http://0.0.0.0:8080/healthz
+
+
+          ports:
+            - name: healthz
+              containerPort: 8080
+              protocol: TCP
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false   # Helm needs to write ~/.config/helm
+            capabilities:
+              drop: [ALL]
+
+          env:
+            - name: PYTHONPATH
+              value: "/app"
+            - name: OPERATOR_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: LOG_LEVEL
+              value: "INFO"
+
+          volumeMounts:
+            - name: helm-cache
+              mountPath: /home/appuser/.cache
+            - name: helm-config
+              mountPath: /home/appuser/.config
+
+
+      volumes:
+        - name: helm-cache
+          emptyDir: {}
+        - name: helm-config
+          emptyDir: {}
+
+---
+# Liveness service (optional — for external monitoring of the operator itself)
+apiVersion: v1
+kind: Service
+metadata:
+  name: kopf-operator
+  namespace: operator
+  labels:
+    app.kubernetes.io/name: kopf-operator
+spec:
+  selector:
+    app.kubernetes.io/name: kopf-operator
+  ports:
+    - name: healthz
+      port: 8080
+      targetPort: healthz
+  type: ClusterIP

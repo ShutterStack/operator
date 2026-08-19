@@ -1,0 +1,55 @@
+{{- if .Values.platform.enabled }}
+apiVersion: platform.ops/v1alpha1
+kind: PlatformStack
+metadata:
+  name: {{ .Values.platform.name | default "my-platform" }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    {{- include "platform-operator.labels" . | nindent 4 }}
+
+spec:
+  components:
+    istio:
+      enabled: {{ .Values.platform.components.istio.enabled }}
+    postgres:
+      enabled: {{ .Values.platform.components.postgres.enabled }}
+    monitoring:
+      enabled: {{ .Values.platform.components.monitoring.enabled }}
+    airflow:
+      enabled: {{ .Values.platform.components.airflow.enabled }}
+
+  istio:
+    profile: {{ .Values.platform.components.istio.profile | default "default" | quote }}
+    gatewayHosts:
+      - {{ .Values.platform.network.hostOnlyIp | quote }}
+      - {{ .Values.platform.network.domain | default "platform.local" | quote }}
+    gatewayIpSans:
+      - {{ .Values.platform.network.hostOnlyIp | quote }}
+
+  postgres:
+    database: {{ .Values.platform.components.postgres.database | default "appdb" | quote }}
+    username: {{ .Values.platform.components.postgres.username | default "appuser" | quote }}
+    storageSize: {{ .Values.platform.components.postgres.storageSize | default "10Gi" | quote }}
+    replicas: {{ .Values.platform.components.postgres.replicas | default 1 }}
+
+  monitoring:
+    storageSize: {{ .Values.platform.components.monitoring.storageSize | default "10Gi" | quote }}
+    retention: {{ .Values.platform.components.monitoring.retention | default "7d" | quote }}
+    grafana:
+      enabled: {{ .Values.platform.components.monitoring.grafana.enabled }}
+      adminPassword: {{ .Values.platform.components.monitoring.grafana.adminPassword | default "" | quote }}
+
+  airflow:
+    executor: {{ .Values.platform.components.airflow.executor | default "KubernetesExecutor" | quote }}
+    webserverReplicas: {{ .Values.platform.components.airflow.webserverReplicas | default 1 }}
+    schedulerReplicas: {{ .Values.platform.components.airflow.schedulerReplicas | default 1 }}
+    gitSync:
+      enabled: {{ .Values.platform.components.airflow.gitSync.enabled }}
+      {{- if .Values.platform.components.airflow.gitSync.enabled }}
+      repo: {{ .Values.platform.components.airflow.gitSync.repo | quote }}
+      branch: {{ .Values.platform.components.airflow.gitSync.branch | default "main" | quote }}
+      subPath: {{ .Values.platform.components.airflow.gitSync.subPath | default "dags" | quote }}
+      {{- end }}
+{{- end }}

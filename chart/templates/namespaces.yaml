@@ -1,0 +1,58 @@
+{{/*
+  namespaces.yaml — Platform namespaces
+
+  These namespaces are annotated with helm.sh/resource-policy: keep so that
+  when 'helm uninstall' is run the operator's namespace is removed but the
+  platform workload namespaces (postgres, monitoring, airflow, istio-system)
+  are left intact with their Helm releases and data still running.
+
+  The Kopf operator itself is responsible for deploying and removing workloads
+  inside these namespaces via its own Helm invocations.  Helm only creates the
+  namespaces here so they exist before the operator pod starts.
+*/}}
+
+{{- $keepPolicy := "keep" }}
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  annotations:
+    helm.sh/resource-policy: {{ $keepPolicy }}
+  labels:
+    app.kubernetes.io/managed-by: platform-operator
+    platform.ops/component: monitoring
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: postgres
+  annotations:
+    helm.sh/resource-policy: {{ $keepPolicy }}
+  labels:
+    app.kubernetes.io/managed-by: platform-operator
+    platform.ops/component: postgres
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: airflow
+  annotations:
+    helm.sh/resource-policy: {{ $keepPolicy }}
+  labels:
+    app.kubernetes.io/managed-by: platform-operator
+    platform.ops/component: airflow
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: istio-system
+  annotations:
+    helm.sh/resource-policy: {{ $keepPolicy }}
+  labels:
+    app.kubernetes.io/managed-by: platform-operator
+    platform.ops/component: istio

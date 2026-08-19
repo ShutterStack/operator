@@ -1,0 +1,100 @@
+# =============================================================================
+# platform-operator Helm Chart Values
+#
+# Usage:
+#   helm install platform-operator ./chart -n operator --create-namespace
+#   Or with custom overrides:
+#   helm install platform-operator ./chart -n operator --create-namespace \
+#     --set platform.network.hostOnlyIp="192.168.56.50"
+# =============================================================================
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Operator Deployment Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+operator:
+  replicaCount: 1
+
+  image:
+    repository: shutterstack04/operator
+    tag: latest
+    pullPolicy: Always
+
+  # For pulling from a private Docker Hub registry, specify the secret name
+  # e.g., imagePullSecrets: [{name: docker-registry-secret}]
+  imagePullSecrets: []
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    fsGroup: 1000
+
+  logLevel: INFO
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Platform Stack Deployment (managed by the Operator)
+# Setting platform.enabled=true deploys the PlatformStack Custom Resource,
+# which triggers the operator to deploy PostgreSQL, Istio, Prometheus, Grafana, & Airflow.
+# ─────────────────────────────────────────────────────────────────────────────
+platform:
+  enabled: true
+  name: "my-platform"
+
+  # ── Network & UI Access ───────────────────────────────────────────────────
+  network:
+    # ⚠️  Your VM Host-Only IP (from ifconfig/hostname -I, e.g. enp0s8)
+    # Used for Istio Gateway TLS certificate SANs and external UI access
+    hostOnlyIp: "192.168.56.50"
+    domain: "platform.local"
+
+  # ── Component Toggles & Configurations ────────────────────────────────────
+  components:
+    # ── Istio Service Mesh (Handles all mTLS + Single Ingress Gateway TLS) ──
+    istio:
+      enabled: true
+      profile: "default"
+      # gatewayHosts and gatewayIpSans are auto-populated from network.hostOnlyIp and network.domain
+
+    # ── PostgreSQL Database ─────────────────────────────────────────────────
+    postgres:
+      enabled: true
+      database: "appdb"
+      username: "appuser"
+      storageSize: "10Gi"
+      replicas: 1
+
+    # ── Monitoring (Prometheus + Grafana) ───────────────────────────────────
+    monitoring:
+      enabled: true
+      storageSize: "10Gi"
+      retention: "7d"
+      grafana:
+        enabled: true
+        # Leave empty to auto-generate a secure random password stored in Secret
+        adminPassword: ""
+
+    # ── Apache Airflow (KubernetesExecutor) ──────────────────────────────────
+    airflow:
+      enabled: true
+      executor: "KubernetesExecutor"
+      webserverReplicas: 1
+      schedulerReplicas: 1
+      gitSync:
+        enabled: false
+        repo: ""
+        branch: "main"
+        subPath: "dags"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Prometheus NodePort Service
+# ─────────────────────────────────────────────────────────────────────────────
+prometheusNodePort:
+  enabled: true
+  nodePort: 30090

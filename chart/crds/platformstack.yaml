@@ -1,0 +1,151 @@
+---
+# PlatformStack CRD — deploys the entire platform in one CR
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: platformstacks.platform.ops
+spec:
+  group: platform.ops
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                components:
+                  type: object
+                  description: "Enable/disable individual stack components"
+                  properties:
+                    istio:
+                      type: object
+                      properties:
+                        enabled: { type: boolean, default: true }
+                    postgres:
+                      type: object
+                      properties:
+                        enabled: { type: boolean, default: true }
+                    monitoring:
+                      type: object
+                      properties:
+                        enabled: { type: boolean, default: true }
+                    airflow:
+                      type: object
+                      properties:
+                        enabled: { type: boolean, default: true }
+
+                istio:
+                  type: object
+                  description: "Istio control plane configuration"
+                  properties:
+                    profile:
+                      type: string
+                      default: "default"
+                      enum: ["default", "minimal", "demo"]
+                    gatewayHosts:
+                      type: array
+                      items: { type: string }
+                      description: "DNS names for the Istio Ingress Gateway TLS cert"
+                    gatewayIpSans:
+                      type: array
+                      items: { type: string }
+                      description: "IP SANs for the gateway cert (e.g. VM IP)"
+
+                postgres:
+                  type: object
+                  description: "PostgreSQL instance configuration"
+                  properties:
+                    database:
+                      type: string
+                      default: "appdb"
+                    username:
+                      type: string
+                      default: "appuser"
+                    storageSize:
+                      type: string
+                      default: "10Gi"
+                    replicas:
+                      type: integer
+                      default: 1
+                      minimum: 1
+
+                monitoring:
+                  type: object
+                  description: "Prometheus + Grafana configuration"
+                  properties:
+                    storageSize:
+                      type: string
+                      default: "10Gi"
+                    retention:
+                      type: string
+                      default: "7d"
+                    grafana:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: true
+                        adminPassword:
+                          type: string
+                          description: "Leave empty to auto-generate"
+
+                airflow:
+                  type: object
+                  description: "Apache Airflow configuration"
+                  properties:
+                    executor:
+                      type: string
+                      default: "KubernetesExecutor"
+                      enum: ["KubernetesExecutor", "LocalExecutor", "CeleryExecutor"]
+                    webserverReplicas:
+                      type: integer
+                      default: 1
+                    schedulerReplicas:
+                      type: integer
+                      default: 1
+                    gitSync:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        repo:
+                          type: string
+                        branch:
+                          type: string
+                          default: "main"
+                        subPath:
+                          type: string
+                          default: "dags"
+
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: mTLS
+          type: string
+          jsonPath: .status.mtls
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+
+      subresources:
+        status: {}
+
+  scope: Namespaced
+  names:
+    plural: platformstacks
+    singular: platformstack
+    kind: PlatformStack
+    shortNames: ["ps", "pstack"]

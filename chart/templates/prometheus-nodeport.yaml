@@ -1,0 +1,14 @@
+{{/*
+  prometheus-nodeport.yaml
+
+  NOTE: This Service is intentionally left empty here.
+  The Kopf operator's monitoring handler creates and owns the
+  'prometheus-nodeport' NodePort Service in the 'monitoring' namespace
+  after Prometheus is fully deployed.
+
+  Rendering it from Helm caused:
+    - "namespace monitoring not found" on fresh install (namespace not ready yet)
+    - The Service being deleted on 'helm uninstall', breaking Prometheus access
+
+  The operator creates this dynamically via _ensure_prometheus_nodeport().
+*/}}

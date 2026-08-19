@@ -1,0 +1,583 @@
+---
+# =============================================================================
+# operator-install.yaml  —  PHASE 1: One-time operator bootstrap
+#
+# Apply this file ONCE to install the operator into your cluster.
+# After the kopf-operator pod is Running, proceed to platform-config.yaml.
+#
+# Usage:
+#   kubectl apply -f manifests/operator-install.yaml
+#   kubectl rollout status deployment/kopf-operator -n operator
+# =============================================================================
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 1: Namespace
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: operator
+  labels:
+    app.kubernetes.io/managed-by: kopf-operator
+
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 2: CRDs (all 5 platform CRDs bundled here)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# CRD 1 — PlatformStack (full stack in one CR)
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: platformstacks.platform.ops
+spec:
+  group: platform.ops
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                components:
+                  type: object
+                  properties:
+                    istio:
+                      type: object
+                      properties:
+                        enabled: { type: boolean, default: true }
+                    postgres:
+                      type: object
+                      properties:
+                        enabled: { type: boolean, default: true }
+                    monitoring:
+                      type: object
+                      properties:
+                        enabled: { type: boolean, default: true }
+                    airflow:
+                      type: object
+                      properties:
+                        enabled: { type: boolean, default: true }
+                istio:
+                  type: object
+                  properties:
+                    profile:
+                      type: string
+                      default: "default"
+                      enum: ["default", "minimal", "demo"]
+                    gatewayHosts:
+                      type: array
+                      items: { type: string }
+                    gatewayIpSans:
+                      type: array
+                      items: { type: string }
+                postgres:
+                  type: object
+                  properties:
+                    database:
+                      type: string
+                      default: "appdb"
+                    username:
+                      type: string
+                      default: "appuser"
+                    storageSize:
+                      type: string
+                      default: "10Gi"
+                    replicas:
+                      type: integer
+                      default: 1
+                      minimum: 1
+                monitoring:
+                  type: object
+                  properties:
+                    storageSize:
+                      type: string
+                      default: "10Gi"
+                    retention:
+                      type: string
+                      default: "7d"
+                    grafana:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: true
+                        adminPassword:
+                          type: string
+                airflow:
+                  type: object
+                  properties:
+                    executor:
+                      type: string
+                      default: "KubernetesExecutor"
+                      enum: ["KubernetesExecutor", "LocalExecutor", "CeleryExecutor"]
+                    webserverReplicas:
+                      type: integer
+                      default: 1
+                    schedulerReplicas:
+                      type: integer
+                      default: 1
+                    gitSync:
+                      type: object
+                      properties:
+                        enabled:
+                          type: boolean
+                          default: false
+                        repo:
+                          type: string
+                        branch:
+                          type: string
+                          default: "main"
+                        subPath:
+                          type: string
+                          default: "dags"
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: mTLS
+          type: string
+          jsonPath: .status.mtls
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}
+  scope: Namespaced
+  names:
+    plural: platformstacks
+    singular: platformstack
+    kind: PlatformStack
+    shortNames: ["ps", "pstack"]
+
+---
+# CRD 2 — PostgresInstance
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: postgresinstances.platform.ops
+spec:
+  group: platform.ops
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                database: { type: string, default: "appdb" }
+                username: { type: string, default: "appuser" }
+                storageSize: { type: string, default: "10Gi" }
+                replicas: { type: integer, default: 1, minimum: 1 }
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}
+  scope: Namespaced
+  names:
+    plural: postgresinstances
+    singular: postgresinstance
+    kind: PostgresInstance
+    shortNames: ["pg", "pgdb"]
+
+---
+# CRD 3 — IstioConfig
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: istioconfigs.platform.ops
+spec:
+  group: platform.ops
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                profile:
+                  type: string
+                  default: "default"
+                  enum: ["default", "minimal", "demo"]
+                gatewayHosts:
+                  type: array
+                  items: { type: string }
+                gatewayIpSans:
+                  type: array
+                  items: { type: string }
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: mTLS
+          type: string
+          jsonPath: .status.mtls
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}
+  scope: Namespaced
+  names:
+    plural: istioconfigs
+    singular: istioconfig
+    kind: IstioConfig
+    shortNames: ["ic"]
+
+---
+# CRD 4 — MonitoringStack
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: monitoringstacks.platform.ops
+spec:
+  group: platform.ops
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                storageSize: { type: string, default: "10Gi" }
+                retention: { type: string, default: "7d" }
+                grafana:
+                  type: object
+                  properties:
+                    enabled: { type: boolean, default: true }
+                    adminPassword: { type: string }
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}
+  scope: Namespaced
+  names:
+    plural: monitoringstacks
+    singular: monitoringstack
+    kind: MonitoringStack
+    shortNames: ["ms", "mon"]
+
+---
+# CRD 5 — AirflowInstance
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: airflowinstances.platform.ops
+spec:
+  group: platform.ops
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                executor:
+                  type: string
+                  default: "KubernetesExecutor"
+                  enum: ["KubernetesExecutor", "LocalExecutor", "CeleryExecutor"]
+                webserverReplicas: { type: integer, default: 1, minimum: 1 }
+                schedulerReplicas: { type: integer, default: 1, minimum: 1 }
+                gitSync:
+                  type: object
+                  properties:
+                    enabled: { type: boolean, default: false }
+                    repo: { type: string }
+                    branch: { type: string, default: "main" }
+                    subPath: { type: string, default: "dags" }
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: Executor
+          type: string
+          jsonPath: .status.executor
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+      subresources:
+        status: {}
+  scope: Namespaced
+  names:
+    plural: airflowinstances
+    singular: airflowinstance
+    kind: AirflowInstance
+    shortNames: ["af"]
+
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 3: RBAC
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kopf-operator
+  namespace: operator
+  labels:
+    app.kubernetes.io/name: kopf-operator
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kopf-operator-role
+rules:
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch, update]
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [platform.ops]
+    resources:
+      - platformstacks
+      - platformstacks/status
+      - platformstacks/finalizers
+      - postgresinstances
+      - postgresinstances/status
+      - postgresinstances/finalizers
+      - istioconfigs
+      - istioconfigs/status
+      - istioconfigs/finalizers
+      - monitoringstacks
+      - monitoringstacks/status
+      - monitoringstacks/finalizers
+      - airflowinstances
+      - airflowinstances/status
+      - airflowinstances/finalizers
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [get, list, watch, create, update, patch]
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - services
+      - endpoints
+      - persistentvolumeclaims
+      - persistentvolumes
+      - configmaps
+      - secrets
+      - serviceaccounts
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, replicasets, daemonsets]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [roles, rolebindings, clusterroles, clusterrolebindings]
+    verbs: [get, list, watch, create, update, patch, delete, bind, escalate]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses]
+    verbs: [get, list, watch]
+  - apiGroups: [cert-manager.io]
+    resources: [certificates, certificaterequests, clusterissuers, issuers]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [networking.istio.io]
+    resources: [gateways, virtualservices, destinationrules, serviceentries, sidecars]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [security.istio.io]
+    resources: [peerauthentications, authorizationpolicies, requestauthentications]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [monitoring.coreos.com]
+    resources:
+      - prometheuses
+      - prometheusrules
+      - alertmanagers
+      - alertmanagerconfigs
+      - servicemonitors
+      - podmonitors
+      - probes
+      - thanosrulers
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch, create, update, patch, delete]
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch, create, update, patch, delete]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kopf-operator-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kopf-operator-role
+subjects:
+  - kind: ServiceAccount
+    name: kopf-operator
+    namespace: operator
+
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# SECTION 4: Operator Deployment
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kopf-operator
+  namespace: operator
+  labels:
+    app.kubernetes.io/name: kopf-operator
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kopf-operator
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kopf-operator
+    spec:
+      serviceAccountName: kopf-operator
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: kopf-operator
+          # Image built locally via: podman build -t kopf-operator:latest .
+          # Loaded into cluster via:
+          #   podman save kopf-operator:latest | sudo ctr -n k8s.io images import -
+          image: kopf-operator:latest
+          imagePullPolicy: Never
+          args:
+            - run
+            - /app/platform_operator/main.py
+            - --all-namespaces
+            - --liveness=http://0.0.0.0:8080/healthz
+
+          ports:
+            - name: healthz
+              containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: PYTHONPATH
+              value: "/app"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: LOG_LEVEL
+              value: "INFO"
+          volumeMounts:
+            - name: helm-cache
+              mountPath: /home/appuser/.cache
+            - name: helm-config
+              mountPath: /home/appuser/.config
+
+      volumes:
+        - name: helm-cache
+          emptyDir: {}
+        - name: helm-config
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kopf-operator
+  namespace: operator
+spec:
+  selector:
+    app.kubernetes.io/name: kopf-operator
+  ports:
+    - name: healthz
+      port: 8080
+      targetPort: healthz
+  type: ClusterIP

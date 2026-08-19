@@ -1,0 +1,76 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: airflowinstances.platform.ops
+spec:
+  group: platform.ops
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                executor:
+                  type: string
+                  default: "KubernetesExecutor"
+                  enum: ["KubernetesExecutor", "LocalExecutor", "CeleryExecutor"]
+                webserverReplicas:
+                  type: integer
+                  default: 1
+                  minimum: 1
+                schedulerReplicas:
+                  type: integer
+                  default: 1
+                  minimum: 1
+                gitSync:
+                  type: object
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                    repo:
+                      type: string
+                      description: "Git repo URL containing DAGs"
+                    branch:
+                      type: string
+                      default: "main"
+                    subPath:
+                      type: string
+                      default: "dags"
+                      description: "Subdirectory in the repo containing DAG files"
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: Executor
+          type: string
+          jsonPath: .status.executor
+        - name: WebserverUrl
+          type: string
+          jsonPath: .status.webserverUrl
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+
+      subresources:
+        status: {}
+
+  scope: Namespaced
+  names:
+    plural: airflowinstances
+    singular: airflowinstance
+    kind: AirflowInstance
+    shortNames: ["af", "airflow"]

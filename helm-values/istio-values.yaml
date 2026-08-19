@@ -1,0 +1,70 @@
+# helm-values/istio-values.yaml
+# Base values for Istio Helm charts.
+# Applied to: istio/base, istio/istiod, istio/gateway
+
+# ── istio/base ────────────────────────────────────────────────────────────────
+defaultRevision: default
+
+# ── istio/istiod ──────────────────────────────────────────────────────────────
+pilot:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  autoscaleEnabled: false    # Disabled for single-node kubeadm
+
+meshConfig:
+  # Log all access to stdout (visible via kubectl logs)
+  accessLogFile: /dev/stdout
+  accessLogEncoding: TEXT
+  enableTracing: false
+  # Default mTLS mode is set via PeerAuthentication CR (STRICT)
+  # so we do not set it here — the operator applies it separately
+  defaultConfig:
+    proxyMetadata: {}
+
+global:
+  proxy:
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+  # Disable multi-cluster features
+  multiCluster:
+    enabled: false
+  network: ""
+
+# ── istio/gateway (Ingress Gateway) ───────────────────────────────────────────
+# Use NodePort for kubeadm (no cloud load balancer available in VirtualBox)
+service:
+  type: NodePort
+  ports:
+    - name: status-port
+      port: 15021
+      targetPort: 15021
+      nodePort: 30021
+    - name: http2
+      port: 80
+      targetPort: 8080
+      nodePort: 30080      # Access HTTP  at http://<VM-IP>:30080
+    - name: https
+      port: 443
+      targetPort: 8443
+      nodePort: 30443      # Access HTTPS at https://<VM-IP>:30443
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+autoscaling:
+  enabled: false

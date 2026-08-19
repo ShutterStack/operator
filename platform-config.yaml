@@ -1,0 +1,129 @@
+# =============================================================================
+# platform-config.yaml
+#
+# ▶ WHAT THIS FILE IS:
+#   The single configuration file you fill in to tell the operator what to deploy.
+#   Every field is explained. Fields marked ⚠️  REQUIRED must be changed.
+#   Fields marked ✅ OPTIONAL have safe defaults and can be left as-is.
+#
+# ▶ HOW TO USE:
+#   Step 1: Edit the ⚠️  REQUIRED fields below (mainly your VM IP)
+#   Step 2: kubectl apply -f platform-config.yaml
+#   Step 3: Watch the operator deploy everything:
+#           kubectl get platformstack my-platform -n operator -w
+#
+# ▶ ACCESS UIs FROM WINDOWS HOST (after deployment):
+#   Grafana    → https://192.168.56.50:30443/grafana
+#   Airflow    → https://192.168.56.50:30443/airflow
+#   Prometheus → http://192.168.56.50:30090
+#   (Accept the self-signed certificate warning in browser)
+#
+# ▶ GET CREDENTIALS AFTER DEPLOYMENT:
+#   Grafana password:
+#     kubectl get secret grafana-admin-credentials -n monitoring \
+#       -o jsonpath='{.data.admin-password}' | base64 -d && echo
+#   PostgreSQL connection string:
+#     kubectl get secret postgres-credentials -n postgres \
+#       -o jsonpath='{.data.connection-string}' | base64 -d && echo
+# =============================================================================
+
+apiVersion: platform.ops/v1alpha1
+kind: PlatformStack
+metadata:
+  name: my-platform
+  namespace: operator
+  labels:
+    app.kubernetes.io/managed-by: kopf-operator
+
+spec:
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # COMPONENT TOGGLES — set enabled: false to skip a component
+  # ═══════════════════════════════════════════════════════════════════════════
+  components:
+    istio:
+      enabled: true       # Must be true — Istio handles ALL TLS/mTLS for other services
+    postgres:
+      enabled: true       # PostgreSQL database (required by Airflow)
+    monitoring:
+      enabled: true       # Prometheus + Grafana dashboards
+    airflow:
+      enabled: true       # Apache Airflow workflow orchestration
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # ISTIO CONFIGURATION
+  # ═══════════════════════════════════════════════════════════════════════════
+  istio:
+    # Istio installation profile
+    # Options: "default" (recommended), "minimal" (no gateway), "demo" (all features)
+    profile: default
+
+    # ⚠️  REQUIRED: Your VM's Host-Only adapter IP
+    # Find it by running on the Fedora VM:  hostname -I
+    # Use the 192.168.x.x address (your enp0s8 interface IP)
+    gatewayHosts:
+      - "192.168.56.50"     # ← Your VM Host-Only IP (Windows uses this to reach UIs)
+      - "platform.local"    # ← Optional hostname alias (add to Windows hosts file)
+
+    # ⚠️  REQUIRED: Same IP as above, for the TLS certificate's IP SAN field
+    # This allows the browser to trust the self-signed cert for this IP
+    gatewayIpSans:
+      - "192.168.56.50"     # ← Your VM Host-Only IP
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # POSTGRESQL CONFIGURATION
+  # ═══════════════════════════════════════════════════════════════════════════
+  postgres:
+    # ✅ OPTIONAL: Database name that will be created
+    database: appdb
+
+    # ✅ OPTIONAL: Database username (password is auto-generated and stored in a K8s Secret)
+    username: appuser
+
+    # ✅ OPTIONAL: Persistent storage size for the database
+    # Check your VM has enough disk: df -h
+    storageSize: 10Gi
+
+    # ✅ OPTIONAL: Number of PostgreSQL instances (1 = single primary, sufficient for dev)
+    replicas: 1
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # MONITORING CONFIGURATION (Prometheus + Grafana)
+  # ═══════════════════════════════════════════════════════════════════════════
+  monitoring:
+    # ✅ OPTIONAL: Prometheus metrics retention period
+    retention: 7d
+
+    # ✅ OPTIONAL: PVC size for Prometheus metrics storage
+    storageSize: 10Gi
+
+    grafana:
+      enabled: true
+
+      # ✅ OPTIONAL: Grafana admin password
+      # Leave empty ("") to auto-generate a secure password.
+      # Retrieve after deployment:
+      #   kubectl get secret grafana-admin-credentials -n monitoring \
+      #     -o jsonpath='{.data.admin-password}' | base64 -d
+      adminPassword: ""   # ← Leave empty for auto-generated secure password
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # AIRFLOW CONFIGURATION
+  # ═══════════════════════════════════════════════════════════════════════════
+  airflow:
+    # ✅ OPTIONAL: Executor type
+    # KubernetesExecutor — recommended for 8GB RAM (no Redis, dynamic task pods)
+    # LocalExecutor      — simpler but all tasks run in the scheduler pod
+    executor: KubernetesExecutor
+
+    # ✅ OPTIONAL: Replicas (keep at 1 for 8GB VM)
+    webserverReplicas: 1
+    schedulerReplicas: 1
+
+    # ✅ OPTIONAL: Load DAGs from a Git repository
+    # Set enabled: true and provide your repo URL to sync DAGs automatically
+    gitSync:
+      enabled: false
+      # repo: "https://github.com/YOUR_USERNAME/airflow-dags.git"
+      # branch: main
+      # subPath: dags    # Folder inside the repo containing .py DAG files

@@ -1,0 +1,97 @@
+# helm-values/postgres-values.yaml
+# Chart: bitnamicharts/postgresql  v16.3.5  →  PostgreSQL
+# Plain TCP port 5432 — TLS is terminated and encrypted mesh-wide by Istio sidecar
+
+image:
+  registry: docker.io
+  repository: bitnami/postgresql
+  tag: latest
+
+auth:
+  # Credentials injected via --set by the operator from the K8s Secret
+  username: "appuser"
+  password: ""
+  database: "appdb"
+  # Superuser disabled — application uses only the dedicated user
+  enablePostgresUser: false
+
+primary:
+  persistence:
+    enabled: true
+    size: 10Gi
+    storageClass: ""    # Uses cluster default (local-path on kubeadm)
+
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 250m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+
+  # ── Security hardening ─────────────────────────────────────────────────────
+  containerSecurityContext:
+    enabled: true
+    runAsUser: 1001
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false   # PostgreSQL needs writable /tmp and data dir
+    seccompProfile:
+      type: RuntimeDefault
+    capabilities:
+      drop: [ALL]
+
+  podSecurityContext:
+    enabled: true
+    runAsUser: 1001
+    runAsNonRoot: true
+    fsGroup: 1001
+    supplementalGroups: []
+
+  # ── Health probes ──────────────────────────────────────────────────────────
+  readinessProbe:
+    enabled: true
+    initialDelaySeconds: 15
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+    successThreshold: 1
+
+  livenessProbe:
+    enabled: true
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+
+  # ── PostgreSQL config hardening (pg_hba.conf) ──────────────────────────────
+  pgHbaConfiguration: |-
+    # TYPE  DATABASE  USER       ADDRESS        METHOD
+    local   all       all                       trust
+    host    all       all        127.0.0.1/32   md5
+    host    all       all        127.0.0.0/8    md5   # Istio Envoy inbound passthrough
+    host    all       all        10.244.0.0/16  md5   # Kubernetes pod CIDR
+    host    all       all        ::1/128        md5
+
+  configuration: |-
+    # Security hardening
+    listen_addresses = '*'
+    log_connections = on
+    log_disconnections = on
+    log_hostname = off
+    log_line_prefix = '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '
+    password_encryption = scram-sha-256
+
+# ── Prometheus metrics exporter (disabled in Phase 2 to prevent CRD dependency issues) ──
+metrics:
+  enabled: false
+  serviceMonitor:
+    enabled: false
+
+replication:
+  enabled: false   # Single node for 8GB RAM VM
+
+# Disabled — Kubernetes fsGroup: 1001 handles permissions natively without helper pod
+volumePermissions:
+  enabled: false
+

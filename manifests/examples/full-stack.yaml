@@ -1,0 +1,70 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# PlatformStack — Full Stack Example
+#
+# BEFORE APPLYING:
+#   1. Run `hostname -I` on your Fedora VM and replace 192.168.x.x below
+#   2. Replace "platform.local" with your VM hostname if you have DNS
+#   3. Run setup.sh first to install cert-manager, namespaces, CRDs, RBAC
+#
+# APPLY:
+#   kubectl apply -f manifests/examples/full-stack.yaml
+#
+# WATCH STATUS:
+#   kubectl get platformstack -n operator -o wide -w
+#   kubectl describe platformstack my-platform -n operator
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: platform.ops/v1alpha1
+kind: PlatformStack
+metadata:
+  name: my-platform
+  namespace: operator
+spec:
+
+  # ── Enable/disable individual components ────────────────────────────────────
+  components:
+    istio:
+      enabled: true
+    postgres:
+      enabled: true
+    monitoring:
+      enabled: true
+    airflow:
+      enabled: true
+
+  # ── Istio configuration ─────────────────────────────────────────────────────
+  istio:
+    profile: default
+    # ⚠️  REPLACE with your actual VM IP (run: hostname -I | awk '{print $1}')
+    gatewayHosts:
+      - "platform.local"
+      - "192.168.56.101"          # ← replace with your VM IP
+    gatewayIpSans:
+      - "192.168.56.101"          # ← replace with your VM IP
+
+  # ── PostgreSQL configuration ────────────────────────────────────────────────
+  postgres:
+    database: appdb
+    username: appuser
+    storageSize: 10Gi
+    replicas: 1
+
+  # ── Prometheus + Grafana configuration ─────────────────────────────────────
+  monitoring:
+    storageSize: 10Gi
+    retention: 7d
+    grafana:
+      enabled: true
+      # Leave empty to auto-generate a secure password stored in a K8s Secret
+      adminPassword: ""
+
+  # ── Airflow configuration ───────────────────────────────────────────────────
+  airflow:
+    executor: KubernetesExecutor   # Recommended for 8GB RAM (no Redis)
+    webserverReplicas: 1
+    schedulerReplicas: 1
+    gitSync:
+      enabled: false               # Set to true + add repo URL to load DAGs from Git
+      # repo: "https://github.com/youruser/airflow-dags.git"
+      # branch: main
+      # subPath: dags

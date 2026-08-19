@@ -1,0 +1,12 @@
+---
+# Standalone PostgresInstance — deploy only PostgreSQL without the full stack
+apiVersion: platform.ops/v1alpha1
+kind: PostgresInstance
+metadata:
+  name: my-postgres
+  namespace: operator
+spec:
+  database: appdb
+  username: appuser
+  storageSize: 10Gi
+  replicas: 1

@@ -1,0 +1,176 @@
+# helm-values/airflow-values.yaml
+# Chart: apache-airflow/airflow  v1.15.0  →  Airflow 2.9.3
+# Security patches: CVE-2024-45034, CVE-2024-41937 fixed in 2.9.3
+
+# ── Executor ───────────────────────────────────────────────────────────────────
+executor: KubernetesExecutor   # No Redis/Celery — saves ~500MB RAM
+
+# ── Pinned image ──────────────────────────────────────────────────────────────
+images:
+  airflow:
+    repository: apache/airflow
+    tag: "2.9.3"              # Pinned — do NOT use latest
+    pullPolicy: IfNotPresent
+  statsd:
+    repository: apache/airflow
+    tag: "2.9.3"
+
+# ── Internal PostgreSQL disabled — operator provides external postgres ──────────
+postgresql:
+  enabled: false
+
+redis:
+  enabled: false              # Not needed for KubernetesExecutor
+
+# ── External database connection (values injected via --set by operator) ────────
+data:
+  metadataConnection:
+    user: ""      # injected from postgres-credentials Secret
+    pass: ""      # injected from postgres-credentials Secret
+    host: ""      # injected: postgresql.postgres.svc.cluster.local
+    port: "5432"
+    db: ""        # injected from postgres-credentials Secret
+    protocol: postgresql
+
+# ── Webserver ──────────────────────────────────────────────────────────────────
+webserver:
+  replicas: 1
+  service:
+    type: ClusterIP    # Exposed via Istio Gateway at /airflow (HTTPS :30443)
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+  livenessProbe:
+    initialDelaySeconds: 60
+    periodSeconds: 20
+    timeoutSeconds: 10
+    failureThreshold: 6
+
+  readinessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 15
+    timeoutSeconds: 10
+    failureThreshold: 6
+
+  securityContext:
+    runAsUser: 50000
+    fsGroup: 0
+    runAsNonRoot: true
+
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+
+# ── Scheduler ──────────────────────────────────────────────────────────────────
+scheduler:
+  replicas: 1
+
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+  securityContext:
+    runAsUser: 50000
+    fsGroup: 0
+    runAsNonRoot: true
+
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: [ALL]
+
+# ── Workers (unused for KubernetesExecutor) ────────────────────────────────────
+workers:
+  replicas: 0
+
+# ── Triggerer (needed for deferred tasks) ─────────────────────────────────────
+triggerer:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# ── Airflow configuration ──────────────────────────────────────────────────────
+config:
+  core:
+    load_examples: "True"         # Show example DAGs on first boot
+    parallelism: "8"
+    max_active_tasks_per_dag: "4"
+    max_active_runs_per_dag: "2"
+    # Security: restrict allowed URL schemes in XCom values
+    allowed_deserialization_classes: ""
+
+  webserver:
+    base_url: "https://192.168.56.50:30443/airflow"
+    enable_proxy_fix: "True"
+    # ⚠️  Security: do NOT expose Airflow config via UI
+    expose_config: "False"
+    # Require authentication for all API calls
+    rbac: "True"
+    session_lifetime_minutes: "43200"
+
+  api:
+    auth_backends: "airflow.api.auth.backend.basic_auth"
+    # Disable unauthenticated access to API
+    enable_experimental_api: "False"
+
+  logging:
+    logging_level: "INFO"
+    fab_logging_level: "WARNING"
+
+  metrics:
+    statsd_on: "False"           # Disabled — using Prometheus ServiceMonitor instead
+
+  kubernetes_executor:
+    namespace: airflow
+    worker_container_repository: apache/airflow
+    worker_container_tag: "2.9.3"
+    delete_worker_pods: "True"
+    delete_worker_pods_on_failure: "False"
+    verify_ssl: "True"
+
+# ── DAGs ───────────────────────────────────────────────────────────────────────
+dags:
+  gitSync:
+    enabled: false   # Enable via platform-config.yaml spec.airflow.gitSync
+
+  persistence:
+    enabled: true
+    size: 1Gi
+    storageClassName: ""
+
+# ── Logs ────────────────────────────────────────────────────────────────────────
+logs:
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClassName: ""
+
+# ── Flower (Celery UI) disabled ────────────────────────────────────────────────
+flower:
+  enabled: false
+
+# ── Migration jobs ─────────────────────────────────────────────────────────────
+migrateDatabaseJob:
+  enabled: true
+  useHelmHooks: false       # Kopf manages ordering, not Helm hooks
+
+createUserJob:
+  useHelmHooks: false       # Kopf manages ordering, not Helm hooks
+  applyCustomEnv: false

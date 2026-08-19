@@ -1,0 +1,63 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: istioconfigs.platform.ops
+spec:
+  group: platform.ops
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                profile:
+                  type: string
+                  default: "default"
+                  enum: ["default", "minimal", "demo"]
+                  description: "Istio installation profile"
+                gatewayHosts:
+                  type: array
+                  items: { type: string }
+                  description: "DNS SANs for the Istio Ingress Gateway TLS certificate"
+                gatewayIpSans:
+                  type: array
+                  items: { type: string }
+                  description: "IP SANs for the TLS cert (use your VM IP from hostname -I)"
+                managedNamespaces:
+                  type: array
+                  items: { type: string }
+                  description: "Namespaces to label with istio-injection=enabled"
+                  default: ["postgres", "monitoring", "airflow"]
+            status:
+              type: object
+              x-kubernetes-preserve-unknown-fields: true
+
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: mTLS
+          type: string
+          jsonPath: .status.mtls
+        - name: GatewayHosts
+          type: string
+          jsonPath: .status.gatewayHosts
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+
+      subresources:
+        status: {}
+
+  scope: Namespaced
+  names:
+    plural: istioconfigs
+    singular: istioconfig
+    kind: IstioConfig
+    shortNames: ["ic", "istio"]

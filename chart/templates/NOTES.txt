@@ -1,0 +1,41 @@
+=============================================================================
+  🎉 Platform Operator deployed successfully via Helm!
+=============================================================================
+
+The Operator is currently reconciling the platform components:
+  1. cert-manager → Installs cert-manager & ClusterIssuer
+  2. Istio → Ingress Gateway + Mesh-wide STRICT mTLS + Gateway TLS cert
+  3. PostgreSQL → Dedicated DB + User + Secret credentials
+  4. Monitoring → Prometheus + Grafana with pre-loaded dashboards
+  5. Airflow → KubernetesExecutor connected to PostgreSQL via mTLS
+
+-----------------------------------------------------------------------------
+  ▶ WATCH PROGRESS:
+-----------------------------------------------------------------------------
+  kubectl get platformstack {{ .Values.platform.name | default "my-platform" }} -n {{ .Release.Namespace }} -w
+
+  Check all platform pods:
+  kubectl get pods -A | grep -E "operator|postgres|istio-system|monitoring|airflow"
+
+-----------------------------------------------------------------------------
+  ▶ WEB UIs (Windows Host Access):
+-----------------------------------------------------------------------------
+  📊 Grafana    →  https://{{ .Values.platform.network.hostOnlyIp }}:30443/grafana
+  🌀 Airflow    →  https://{{ .Values.platform.network.hostOnlyIp }}:30443/airflow
+  🔥 Prometheus →  http://{{ .Values.platform.network.hostOnlyIp }}:{{ .Values.prometheusNodePort.nodePort | default 30090 }}
+
+  (Accept the self-signed TLS certificate in your browser by clicking Advanced -> Proceed)
+
+-----------------------------------------------------------------------------
+  ▶ RETRIEVE CREDENTIALS:
+-----------------------------------------------------------------------------
+  Grafana Password:
+    kubectl get secret grafana-admin-credentials -n monitoring -o jsonpath='{.data.admin-password}' | base64 -d && echo
+
+  PostgreSQL Connection String:
+    kubectl get secret postgres-credentials -n postgres -o jsonpath='{.data.connection-string}' | base64 -d && echo
+
+  Airflow:
+    User: admin  /  Password: admin (change after first login)
+
+=============================================================================

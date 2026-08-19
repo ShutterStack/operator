@@ -1,0 +1,178 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# ServiceAccount for the Kopf operator
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kopf-operator
+  namespace: operator
+  labels:
+    app.kubernetes.io/name: kopf-operator
+    app.kubernetes.io/component: operator
+
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# ClusterRole — operator needs cluster-wide access for CRDs, namespaces,
+# cert-manager resources, Istio CRs, and all Helm-managed resources
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kopf-operator-role
+  labels:
+    app.kubernetes.io/name: kopf-operator
+rules:
+
+  # ── Kopf internal machinery ────────────────────────────────────────────────
+  - apiGroups: [""]
+    resources: [events]
+    verbs: [create, patch, update]
+
+  - apiGroups: [coordination.k8s.io]
+    resources: [leases]
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # ── Custom Resources (platform.ops group) ─────────────────────────────────
+  - apiGroups: [platform.ops]
+    resources:
+      - platformstacks
+      - platformstacks/status
+      - platformstacks/finalizers
+      - postgresinstances
+      - postgresinstances/status
+      - postgresinstances/finalizers
+      - istioconfigs
+      - istioconfigs/status
+      - istioconfigs/finalizers
+      - monitoringstacks
+      - monitoringstacks/status
+      - monitoringstacks/finalizers
+      - airflowinstances
+      - airflowinstances/status
+      - airflowinstances/finalizers
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # ── CRD management (for installing Prometheus Operator CRDs) ──────────────
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # ── Namespaces (create + label for Istio injection) ───────────────────────
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [get, list, watch, create, update, patch]
+
+  # ── Core workload resources ───────────────────────────────────────────────
+  - apiGroups: [""]
+    resources:
+      - pods
+      - pods/log
+      - services
+      - endpoints
+      - persistentvolumeclaims
+      - persistentvolumes
+      - configmaps
+      - secrets
+      - serviceaccounts
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  - apiGroups: [apps]
+    resources:
+      - deployments
+      - statefulsets
+      - replicasets
+      - daemonsets
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # ── RBAC (Helm charts create their own RBAC) ──────────────────────────────
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources:
+      - roles
+      - rolebindings
+      - clusterroles
+      - clusterrolebindings
+    verbs: [get, list, watch, create, update, patch, delete, bind, escalate]
+
+  # ── Networking ────────────────────────────────────────────────────────────
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses, networkpolicies]
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # ── StorageClass ──────────────────────────────────────────────────────────
+  - apiGroups: [storage.k8s.io]
+    resources: [storageclasses]
+    verbs: [get, list, watch]
+
+  # ── cert-manager resources ─────────────────────────────────────────────────
+  - apiGroups: [cert-manager.io]
+    resources:
+      - certificates
+      - certificaterequests
+      - clusterissuers
+      - issuers
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # ── Istio networking resources ─────────────────────────────────────────────
+  - apiGroups: [networking.istio.io]
+    resources:
+      - gateways
+      - virtualservices
+      - destinationrules
+      - serviceentries
+      - sidecars
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # ── Istio security resources ───────────────────────────────────────────────
+  - apiGroups: [security.istio.io]
+    resources:
+      - peerauthentications
+      - authorizationpolicies
+      - requestauthentications
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # ── Prometheus Operator CRs ────────────────────────────────────────────────
+  - apiGroups: [monitoring.coreos.com]
+    resources:
+      - prometheuses
+      - prometheusrules
+      - alertmanagers
+      - alertmanagerconfigs
+      - servicemonitors
+      - podmonitors
+      - probes
+      - thanosrulers
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # ── HorizontalPodAutoscaler (Airflow KubernetesExecutor) ──────────────────
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch, create, update, patch, delete]
+
+  # ── Policy ────────────────────────────────────────────────────────────────
+  - apiGroups: [policy]
+    resources: [poddisruptionbudgets]
+    verbs: [get, list, watch, create, update, patch, delete]
+
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# ClusterRoleBinding
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kopf-operator-binding
+  labels:
+    app.kubernetes.io/name: kopf-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kopf-operator-role
+subjects:
+  - kind: ServiceAccount
+    name: kopf-operator
+    namespace: operator

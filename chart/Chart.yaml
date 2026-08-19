@@ -1,0 +1,16 @@
+apiVersion: v2
+name: platform-operator
+description: A Kopf-based Kubernetes Operator deploying PostgreSQL, Istio (mTLS & single gateway TLS), Prometheus, Grafana, and Airflow.
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - operator
+  - kopf
+  - istio
+  - postgresql
+  - prometheus
+  - grafana
+  - airflow
+maintainers:
+  - name: platform-ops

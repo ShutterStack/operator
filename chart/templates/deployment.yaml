@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform-operator.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "platform-operator.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.operator.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      {{- include "platform-operator.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "platform-operator.selectorLabels" . | nindent 8 }}
+      annotations:
+        kubectl.kubernetes.io/default-container: kopf-operator
+    spec:
+      serviceAccountName: {{ include "platform-operator.serviceAccountName" . }}
+      {{- with .Values.operator.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+
+      securityContext:
+        runAsNonRoot: {{ .Values.operator.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.operator.securityContext.runAsUser }}
+        fsGroup: {{ .Values.operator.securityContext.fsGroup }}
+
+      containers:
+        - name: kopf-operator
+          image: "{{ .Values.operator.image.repository }}:{{ .Values.operator.image.tag }}"
+          imagePullPolicy: {{ .Values.operator.image.pullPolicy }}
+
+          args:
+            - run
+            - /app/platform_operator/main.py
+            - --all-namespaces
+            - --liveness=http://0.0.0.0:8080/healthz
+
+          ports:
+            - name: healthz
+              containerPort: 8080
+
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 10
+            periodSeconds: 15
+
+          resources:
+            {{- toYaml .Values.operator.resources | nindent 12 }}
+
+          env:
+            - name: PYTHONPATH
+              value: "/app"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: LOG_LEVEL
+              value: {{ .Values.operator.logLevel | default "INFO" | quote }}
+
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
