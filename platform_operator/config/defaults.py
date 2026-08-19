@@ -105,7 +105,7 @@ POSTGRES_DEFAULTS = {
     "image.registry": "docker.io",
     "image.repository": "bitnami/postgresql",
     "image.tag": "latest",
-    "primary.configuration": "listen_addresses = '*'\nlog_connections = on\nlog_disconnections = on\nlog_hostname = off\nlog_line_prefix = '%t [%p]: [%l-1] user=%u,db=%d,app=%a,client=%h '\npassword_encryption = scram-sha-256",
+    "primary.configuration": "listen_addresses = '*'\nlog_connections = on\nlog_disconnections = on\nlog_hostname = off\npassword_encryption = scram-sha-256",
     "primary.pgHbaConfiguration": "local   all       all                       trust\nhost    all       all        127.0.0.1/32   md5\nhost    all       all        127.0.0.0/8    md5\nhost    all       all        10.244.0.0/16  md5\nhost    all       all        ::1/128        md5",
 }
 
