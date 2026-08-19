@@ -221,11 +221,8 @@ AIRFLOW_DEFAULTS = {
     "scheduler.securityContext.runAsUser":  "50000",
     "scheduler.securityContext.fsGroup":    "0",
     "triggerer.enabled":           "false",
-    "webserver.livenessProbe.enabled":  "false",
-    "webserver.readinessProbe.enabled": "false",
-    "webserver.startupProbe.enabled":   "false",
-    "migrateDatabaseJob.jobAnnotations.sidecar\\.istio\\.io/inject": "false",
-    "createUserJob.jobAnnotations.sidecar\\.istio\\.io/inject": "false",
+    "migrateDatabaseJob.jobAnnotations.sidecar\\.istio\\.io/inject": "\"false\"",
+    "createUserJob.jobAnnotations.sidecar\\.istio\\.io/inject": "\"false\"",
 }
 
 # ---------------------------------------------------------------------------

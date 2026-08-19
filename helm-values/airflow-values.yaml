@@ -63,10 +63,6 @@ webserver:
     fsGroup: 0
     runAsNonRoot: true
 
-  containerSecurityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop: [ALL]
 
 # ── Scheduler ──────────────────────────────────────────────────────────────────
 scheduler:
@@ -85,10 +81,6 @@ scheduler:
     fsGroup: 0
     runAsNonRoot: true
 
-  containerSecurityContext:
-    allowPrivilegeEscalation: false
-    capabilities:
-      drop: [ALL]
 
 # ── Workers (unused for KubernetesExecutor) ────────────────────────────────────
 workers:
