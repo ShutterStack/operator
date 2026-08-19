@@ -12,8 +12,8 @@ images:
     tag: "2.9.3"              # Pinned — do NOT use latest
     pullPolicy: IfNotPresent
   statsd:
-    repository: apache/airflow
-    tag: "2.9.3"
+    repository: prom/statsd-exporter
+    tag: "v0.26.1"
 
 # ── Internal PostgreSQL disabled — operator provides external postgres ──────────
 postgresql:
