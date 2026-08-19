@@ -1,19 +1,37 @@
 name: Build and Push Docker Image
 
 on:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type (patch, minor, major)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Required to allow the tag action to push the new git tag
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Required to read all git tags for version calculation
+
+      - name: Bump version and push git tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          default_bump: ${{ github.event.inputs.bump }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -24,15 +42,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: shutterstack04/operator
-          tags: |
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=ref,event=tag
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -40,5 +49,6 @@ jobs:
           file: ./Dockerfile
           push: true
           no-cache: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            shutterstack04/operator:latest
+            shutterstack04/operator:${{ steps.tag_version.outputs.new_tag }}
