@@ -141,10 +141,10 @@ ISTIO_GATEWAY_DEFAULTS = {
     "service.ports[2].port": "443",
     "service.ports[2].nodePort": "30443",
     "autoscaling.enabled": "false",
-    "resources.requests.cpu":    "100m",
-    "resources.requests.memory": "128Mi",
-    "resources.limits.cpu":      "200m",
-    "resources.limits.memory":   "256Mi",
+    "resources.requests.cpu":    "10m",
+    "resources.requests.memory": "64Mi",
+    "resources.limits.cpu":      "500m",
+    "resources.limits.memory":   "512Mi",
 }
 
 PROMETHEUS_DEFAULTS = {
