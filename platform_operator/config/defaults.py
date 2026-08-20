@@ -150,7 +150,7 @@ ISTIO_GATEWAY_DEFAULTS = {
 PROMETHEUS_DEFAULTS = {
     "grafana.enabled":                         "true",
     "grafana.adminPassword":                   "changeme",   # overridden by Secret
-    "grafana.persistence.enabled":             "true",
+    "grafana.persistence.enabled":             "false",
     "grafana.persistence.size":                "2Gi",
     "grafana.persistence.storageClassName":    "local-path",
     "prometheus.prometheusSpec.retention":     "7d",
